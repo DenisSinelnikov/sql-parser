@@ -6,22 +6,31 @@ public final class SQLRegexConst {
     public static final String SELECT_COLUMNS_PATTERN =
         "(?i)" + Keyword.SELECT + " (.*?) " + Keyword.FROM;
 
-    public static final String FROM_PATTERN =
-        "(?i)" + Keyword.FROM + " (.*?)( " + Keyword.WHERE
-            + " | " + Keyword.GROUP_BY
-            + " | " + Keyword.HAVING
-            + " | " + Keyword.ORDER_BY
-            + " | " + Keyword.LIMIT
-            + " | " + Keyword.OFFSET
-            + " |$)";
+    public static final String JOIN_REGEX =
+        "(?i)" + Keyword.FROM + "\\s+(.+?)(?=\\s+("
+            + Keyword.LEFT_JOIN.replace(" ", "\\s+")
+            + "|" + Keyword.RIGHT_JOIN.replace(" ", "\\s+")
+            + "|" + Keyword.INNER_JOIN.replace(" ", "\\s+")
+            + "|" + Keyword.FULL_JOIN.replace(" ", "\\s+")
+            + "|" + Keyword.CROSS_JOIN.replace(" ", "\\s+")
+            + "))";
 
-    public static final String WHERE_PATTERN =
-        "(?i)" + Keyword.WHERE + " (.*?)( " + Keyword.GROUP_BY
-            + " | " + Keyword.HAVING
-            + " | " + Keyword.ORDER_BY
-            + " | " + Keyword.LIMIT
-            + " | " + Keyword.OFFSET
-            + " |$)";
+    public static final String WHERE_REGEX =
+        "(?i)\\b" + Keyword.FROM + "\\s+(.+?)(?=\\s+("
+            + Keyword.WHERE + "|"
+            + Keyword.GROUP + "\\s+" + Keyword.BY + "|"
+            + Keyword.ORDER + "\\s+" + Keyword.BY + "|"
+            + Keyword.HAVING + "|"
+            + Keyword.LIMIT
+            + ")|$)";
+
+    public static final String FROM_WHERE_REGEX =
+        "^(.+?)(?=\\s+("
+            + Keyword.GROUP + "\\s+" + Keyword.BY + "|"
+            + Keyword.HAVING + "|"
+            + Keyword.ORDER + "\\s+" + Keyword.BY + "|"
+            + Keyword.LIMIT
+            + ")|$)";
 
     public static final String GROUP_BY_PATTERN =
         "(?i)" + Keyword.GROUP_BY + " (.*?)( " + Keyword.HAVING

@@ -6,13 +6,9 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class SqlParser {
+import static org.example.parser.SQLRegexConst.*;
 
-    private static final String JOIN_SPLIT_REGEX = "(?i)( "
-        + Keyword.INNER_JOIN + " | "
-        + Keyword.LEFT_JOIN + " | "
-        + Keyword.RIGHT_JOIN + " | "
-        + Keyword.FULL_JOIN + " )";
+public class SqlParser {
 
     private static final String CONDITION_SPLIT_REGEX = "(?i) " + Keyword.AND + " ";
 
@@ -50,27 +46,44 @@ public class SqlParser {
     }
 
     private List<Source> parseFromSources(String sql) {
-        String fromPart = extractSection(sql, SQLRegexConst.FROM_PATTERN);
-        String[] parts = fromPart.split(JOIN_SPLIT_REGEX);
+        String fromPart = extractFromPartManually(sql);
 
-        if (parts.length == 0 || parts[0].isBlank()) {
+        if (fromPart.isBlank()) {
             return List.of();
         }
 
         List<Source> sources = new ArrayList<>();
-        String sourcesPart = parts[0].trim();
 
-        for (String sourceStr : sourcesPart.split(",")) {
+        for (String sourceStr : fromPart.split(",")) {
             String source = sourceStr.trim();
 
             if (source.startsWith("(")) {
-                int aliasIndex = source.lastIndexOf(") ");
-                if (aliasIndex != -1) {
-                    String subquery = source.substring(0, aliasIndex + 1);
-                    String alias = source.substring(aliasIndex + 2).trim();
-                    sources.add(new Source(subquery, alias));
-                    continue;
+                int parenCount = 0;
+                int endIndex = -1;
+
+                for (int i = 0; i < source.length(); i++) {
+                    char c = source.charAt(i);
+                    if (c == '(') {
+                        parenCount++;
+                    } else if (c == ')') {
+                        parenCount--;
+                        if (parenCount == 0) {
+                            endIndex = i;
+                            break;
+                        }
+                    }
                 }
+
+                if (endIndex != -1 && endIndex < source.length() - 1) {
+                    String subquery = source.substring(0, endIndex + 1);
+                    String remaining = source.substring(endIndex + 1).trim();
+                    String alias = remaining.isEmpty() ? null : remaining;
+                    sources.add(new Source(subquery, alias));
+                } else if (endIndex != -1) {
+                    String subquery = source.substring(0, endIndex + 1);
+                    sources.add(new Source(subquery, null));
+                }
+                continue;
             }
 
             String[] sourceTokens = source.split("\\s+");
@@ -80,6 +93,24 @@ public class SqlParser {
         }
 
         return sources;
+    }
+
+    private String extractFromPartManually(String sql) {
+        Pattern pattern = Pattern.compile(JOIN_REGEX, Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(sql);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        pattern = Pattern.compile(WHERE_REGEX, Pattern.DOTALL);
+        matcher = pattern.matcher(sql);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        return "";
     }
 
     private List<Join> parseJoins(String sql) {
@@ -102,7 +133,7 @@ public class SqlParser {
     }
 
     private List<Where> parseWhere(String sql) {
-        String wherePart = extractSection(sql, SQLRegexConst.WHERE_PATTERN);
+        String wherePart = extractWherePartManually(sql);
         if (wherePart.isEmpty()) {
             return List.of();
         }
@@ -112,6 +143,40 @@ public class SqlParser {
             .filter(s -> !s.isEmpty())
             .map(Where::new)
             .toList();
+    }
+
+    private String extractWherePartManually(String sql) {
+        int whereIndex = -1;
+        String lowerSql = sql.toLowerCase();
+
+        int searchFrom = 0;
+        while (true) {
+            int foundIndex = lowerSql.indexOf("where", searchFrom);
+            if (foundIndex == -1) break;
+
+            boolean isWordBoundary = (foundIndex == 0 || !Character.isLetterOrDigit(lowerSql.charAt(foundIndex - 1))) &&
+                (foundIndex + 5 >= lowerSql.length() || !Character.isLetterOrDigit(lowerSql.charAt(foundIndex + 5)));
+
+            if (isWordBoundary) {
+                whereIndex = foundIndex;
+            }
+            searchFrom = foundIndex + 1;
+        }
+
+        if (whereIndex == -1) {
+            return "";
+        }
+
+        String fromWhere = sql.substring(whereIndex + 5).trim();
+
+        Pattern pattern = Pattern.compile(FROM_WHERE_REGEX, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(fromWhere);
+
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        return fromWhere;
     }
 
     private List<String> parseGroupBy(String sql) {

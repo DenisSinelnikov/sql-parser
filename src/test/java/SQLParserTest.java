@@ -1,7 +1,11 @@
+import org.example.model.Join;
 import org.example.model.Query;
+import org.example.model.Source;
+import org.example.model.Where;
 import org.example.parser.SqlParser;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class SQLParserTest {
@@ -164,4 +168,58 @@ public class SQLParserTest {
         assertEquals(1, query.getHaving().size());
         assertTrue(query.getHaving().getFirst().condition().contains("COUNT"));
     }
+
+    @Test
+    void testWhereConditionsFromPublicParse() {
+        SqlParser parser = new SqlParser();
+        String sql = "SELECT * FROM users WHERE active = 1 AND age > 18";
+        Query query = parser.parse(sql);
+        List<Where> where = query.getWhere();
+        assertEquals(2, where.size());
+        assertEquals("active = 1", where.get(0).condition());
+        assertEquals("age > 18", where.get(1).condition());
+    }
+
+    @Test
+    void testJoinParsingFromPublicParse() {
+        String sql = """
+        SELECT * FROM users u
+        LEFT JOIN orders o ON u.id = o.user_id
+        INNER JOIN payments p ON o.id = p.order_id
+        """;
+        SqlParser parser = new SqlParser();
+        Query query = parser.parse(sql);
+        List<Join> joins = query.getJoins();
+        assertEquals(2, joins.size());
+
+        Join join1 = joins.getFirst();
+        assertEquals("LEFT JOIN", join1.type());
+        assertEquals("orders", join1.table());
+        assertEquals("o", join1.alias());
+        assertEquals("u.id = o.user_id", join1.onCondition());
+
+        Join join2 = joins.get(1);
+        assertEquals("INNER JOIN", join2.type());
+        assertEquals("payments", join2.table());
+        assertEquals("p", join2.alias());
+        assertEquals("o.id = p.order_id", join2.onCondition());
+    }
+
+    @Test
+    void testFromSourcesWithSubqueryAndAlias() {
+        String sql = "SELECT * FROM (SELECT * FROM data) d, users u";
+        SqlParser parser = new SqlParser();
+        Query query = parser.parse(sql);
+        List<Source> sources = query.getFromSources();
+        assertEquals(2, sources.size());
+
+        Source subquerySource = sources.getFirst();
+        assertTrue(subquerySource.name().startsWith("("));
+        assertEquals("d", subquerySource.alias());
+
+        Source second = sources.get(1);
+        assertEquals("users", second.name());
+        assertEquals("u", second.alias());
+    }
+
 }
